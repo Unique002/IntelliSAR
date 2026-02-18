@@ -19,11 +19,12 @@ export const mockSimilarCasesList = [
   { id: 'Case #5832', typology: 'Structuring recurrence', date: '2023-08-04' }
 ];
 
+// UPDATED: Statuses mapped to new workflow
 export const mockCases = [
-  { id: 'BRC-2024-0147', customer: 'Bright Tech Solutions Pvt Ltd', risk: 'High', type: 'Structuring', status: 'Open', date: '2024-02-14', similarCases: 2 },
-  { id: 'BRC-2024-0146', customer: 'Global Imports LLC', risk: 'Medium', type: 'Funnel', status: 'Drafted', date: '2024-02-13', similarCases: 0 },
-  { id: 'BRC-2024-0145', customer: 'Sunrise Traders', risk: 'High', type: 'Geo-risk', status: 'Approved', date: '2024-02-12', similarCases: 1 },
-  { id: 'BRC-2024-0144', customer: 'Metro Textiles Ltd', risk: 'Medium', type: 'Structuring', status: 'Under Review', date: '2024-02-11', similarCases: 0 },
+  { id: 'ALT-2024-0147', customer: 'Bright Tech Solutions Pvt Ltd', risk: 'High', type: 'Structuring', status: 'Screening', date: '2024-02-14', similarCases: 2 },
+  { id: 'ALT-2024-0146', customer: 'Global Imports LLC', risk: 'Medium', type: 'Funnel', status: 'Qualified', date: '2024-02-13', similarCases: 0 },
+  { id: 'ALT-2024-0145', customer: 'Sunrise Traders', risk: 'High', type: 'Geo-risk', status: 'Escalated', date: '2024-02-12', similarCases: 1 },
+  { id: 'ALT-2024-0144', customer: 'Metro Textiles Ltd', risk: 'Medium', type: 'Structuring', status: 'Under Review', date: '2024-02-11', similarCases: 0 },
 ];
 
 export const mockCustomer = {

@@ -18,7 +18,8 @@ import {
 } from './data/mockData';
 
 export default function SARPlatform() {
-  const [currentScreen, setCurrentScreen] = useState('alerts');
+  // 1. Fixed to start on dashboard
+  const [currentScreen, setCurrentScreen] = useState('dashboard');
   const [selectedAlert, setSelectedAlert] = useState(mockAlerts[0]);
   const [selectedCase, setSelectedCase] = useState(null);
   const [selectedSentence, setSelectedSentence] = useState(null);
@@ -30,24 +31,33 @@ export default function SARPlatform() {
   const [analystNotes, setAnalystNotes] = useState('');
   const [showGraph, setShowGraph] = useState(false);
   const [currentRole, setCurrentRole] = useState('analyst');
-  const [workflowStatus, setWorkflowStatus] = useState('draft');
+  const [workflowStatus, setWorkflowStatus] = useState('summary_ready'); // Updated default status
   const [showToneCalibration, setShowToneCalibration] = useState(false);
   const [hoveredNode, setHoveredNode] = useState(null);
+  const [isSarReady, setIsSarReady] = useState(false); // 2. Restored this missing state!
+
+  const openQualificationGate = (caseData) => {
+    setSelectedCase(caseData);
+    setCurrentScreen('alerts');
+  };
+
+  const openInvestigationCase = () => {
+    setCurrentScreen('investigation');
+    setSelectedTransactions([]);
+  };
 
   const openCase = (caseData) => {
     setSelectedCase(caseData);
     setCurrentScreen('investigation');
-    setSarGenerated(false);
     setSelectedTransactions([]);
   };
 
-  const generateSAR = () => {
+  const generateInvestigationSummary = () => {
     setGenerating(true);
     setTimeout(() => {
       setGenerating(false);
-      setSarGenerated(true);
       setCurrentScreen('sar-draft');
-      setWorkflowStatus('draft');
+      setWorkflowStatus('summary_ready');
     }, 2500);
   };
 
@@ -78,7 +88,7 @@ export default function SARPlatform() {
 
   const submitForReview = () => {
     setWorkflowStatus('under_review');
-    alert('SAR submitted for compliance review\n\nAssigned to: Senior Compliance Officer\nSLA: 48 hours');
+    alert('Investigation Summary submitted for compliance review\n\nAssigned to: Senior Compliance Officer\nSLA: 48 hours');
   };
 
   const approveSAR = () => {
@@ -87,9 +97,9 @@ export default function SARPlatform() {
   };
 
   const rejectSAR = () => {
-    setWorkflowStatus('draft');
+    setWorkflowStatus('summary_ready');
     setCurrentRole('analyst');
-    alert('SAR returned to analyst for revision\n\nReviewer feedback: Please strengthen evidence linkage in typology section');
+    alert('Returned to analyst for revision\n\nReviewer feedback: Please strengthen evidence linkage in typology section');
   };
 
   return (
@@ -235,8 +245,8 @@ export default function SARPlatform() {
                   </div>
 
                   <div className="flex gap-4 pt-4 border-t border-slate-200">
-                    <button onClick={() => setCurrentScreen('dashboard')} className="flex-1 bg-cyan-700 hover:bg-cyan-800 text-white py-3 px-4 font-bold rounded flex items-center justify-center gap-2 transition-colors">
-                      <CheckCircle className="w-5 h-5" /> Escalate → Open Investigation Case
+                    <button onClick={openInvestigationCase} className="flex-1 bg-cyan-700 hover:bg-cyan-800 text-white py-3 px-4 font-bold rounded flex items-center justify-center gap-2 transition-colors">
+                      <CheckCircle className="w-5 h-5" /> Open Investigation Case
                     </button>
                     <button onClick={() => alert('Alert dismissed as False Positive.')} className="px-6 py-3 border-2 border-slate-200 text-slate-600 font-bold hover:bg-slate-50 rounded transition-colors">
                       Dismiss (False Positive)
@@ -256,15 +266,15 @@ export default function SARPlatform() {
         <div className="max-w-[1600px] mx-auto px-8 py-8">
           <div className="mb-8">
             <h2 className="text-4xl font-black text-slate-900 mb-3" style={{ fontFamily: 'system-ui, sans-serif' }}>
-              Active Investigations
+              Alert Qualification Queue
             </h2>
-            <p className="text-slate-600 text-lg">Review flagged cases and initiate SAR workflows</p>
+            <p className="text-slate-600 text-lg">Screen raw alerts before opening investigations</p>
           </div>
 
           <div className="grid grid-cols-4 gap-5 mb-8">
             <div className="bg-white p-6 border-l-4 border-cyan-600 shadow-sm hover:shadow-md transition-shadow">
               <div className="text-3xl font-black text-slate-900">12</div>
-              <div className="text-xs text-slate-600 uppercase tracking-widest mt-2 font-semibold">Open Cases</div>
+              <div className="text-xs text-slate-600 uppercase tracking-widest mt-2 font-semibold">Incoming Alerts</div>
               <div className="mt-3 flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-green-600" />
                 <span className="text-xs text-green-600 font-semibold">+3 this week</span>
@@ -272,7 +282,7 @@ export default function SARPlatform() {
             </div>
             <div className="bg-white p-6 border-l-4 border-amber-600 shadow-sm hover:shadow-md transition-shadow">
               <div className="text-3xl font-black text-slate-900">8</div>
-              <div className="text-xs text-slate-600 uppercase tracking-widest mt-2 font-semibold">Pending Review</div>
+              <div className="text-xs text-slate-600 uppercase tracking-widest mt-2 font-semibold">Screening Pending</div>
               <div className="mt-3 flex items-center gap-2">
                 <Clock className="w-4 h-4 text-amber-600" />
                 <span className="text-xs text-amber-600 font-semibold">2 SLA critical</span>
@@ -280,7 +290,7 @@ export default function SARPlatform() {
             </div>
             <div className="bg-white p-6 border-l-4 border-green-600 shadow-sm hover:shadow-md transition-shadow">
               <div className="text-3xl font-black text-slate-900">47</div>
-              <div className="text-xs text-slate-600 uppercase tracking-widest mt-2 font-semibold">Filed This Month</div>
+              <div className="text-xs text-slate-600 uppercase tracking-widest mt-2 font-semibold">Investigation Opened</div>
               <div className="mt-3 flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-green-600" />
                 <span className="text-xs text-green-600 font-semibold">On target</span>
@@ -288,7 +298,7 @@ export default function SARPlatform() {
             </div>
             <div className="bg-white p-6 border-l-4 border-cyan-600 shadow-sm hover:shadow-md transition-shadow">
               <div className="text-3xl font-black text-slate-900">92%</div>
-              <div className="text-xs text-slate-600 uppercase tracking-widest mt-2 font-semibold">Avg Defensibility</div>
+              <div className="text-xs text-slate-600 uppercase tracking-widest mt-2 font-semibold">Avg Qualification Precision</div>
               <div className="mt-3 flex items-center gap-2">
                 <Shield className="w-4 h-4 text-cyan-600" />
                 <span className="text-xs text-cyan-600 font-semibold">Above benchmark</span>
@@ -299,7 +309,7 @@ export default function SARPlatform() {
           <div className="bg-white border border-slate-200 shadow-sm">
             <div className="border-b border-slate-200 px-8 py-4 bg-slate-50">
               <div className="grid grid-cols-7 text-xs font-black text-slate-700 uppercase tracking-widest">
-                <div>Case ID</div>
+                <div>ALERT ID</div>
                 <div className="col-span-2">Customer</div>
                 <div>Typology</div>
                 <div>Risk Level</div>
@@ -346,6 +356,7 @@ export default function SARPlatform() {
                     </span>
                   </div>
                   <div>
+                    {/* 3. Fixed to open Investigation Workspace directly from Dashboard */}
                     <button
                       onClick={() => openCase(caseData)}
                       className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-700 text-white text-xs font-bold hover:bg-cyan-800 transition-colors group-hover:px-6"
@@ -613,8 +624,9 @@ export default function SARPlatform() {
                 <div className="px-6 py-4 bg-slate-800 border-b border-slate-700">
                   <h3 className="text-lg font-black text-white flex items-center gap-2">
                     <Zap className="w-5 h-5 text-amber-400" />
-                    Typology Detection
+                    Evidence Pack Signal
                   </h3>
+                  <div className="text-xs text-slate-400 px-6 pt-3">Indicators extracted from locked evidence bundle</div>
                 </div>
                 <div className="p-6 space-y-5">
                   {mockTypologies.map((typology, idx) => (
@@ -654,9 +666,20 @@ export default function SARPlatform() {
               {/* UPGRADE 2: Similar Cases Detected */}
               <SimilarCasesWidget cases={mockSimilarCasesList} />
 
+              <div className="bg-white border border-slate-200 shadow-sm mt-6 mb-6">
+                <div className="px-6 py-4 bg-blue-50 border-b border-blue-100 flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-blue-700" />
+                  <h3 className="text-sm font-black text-blue-900">Regulatory Guidance (RAG)</h3>
+                </div>
+                <div className="p-4 space-y-3">
+                  <div className="text-sm text-slate-700"><strong>RBI Reference:</strong> KYC Master Direction 2016 - Suspicious transaction monitoring required for sub-threshold aggregation.</div>
+                  <div className="text-sm text-slate-700"><strong>FATF Note:</strong> Structuring typology indicated by deliberate evasion of reporting thresholds.</div>
+                </div>
+              </div>
+
               {/* Generate SAR Button */}
               <button
-                onClick={generateSAR}
+                onClick={generateInvestigationSummary}
                 disabled={generating}
                 className="w-full bg-gradient-to-r from-cyan-600 to-cyan-700 hover:from-cyan-700 hover:to-cyan-800 text-white py-5 px-6 font-black text-base transition-all disabled:opacity-50 shadow-lg flex items-center justify-center gap-3 group"
               >
@@ -666,9 +689,10 @@ export default function SARPlatform() {
                     Generating Draft...
                   </>
                 ) : (
+                  
                   <>
                     <FileText className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                    Generate SAR Draft
+                    Generate Investigation Summary
                   </>
                 )}
               </button>
@@ -706,15 +730,17 @@ export default function SARPlatform() {
               <span className="text-slate-400">|</span>
               <span className="font-mono text-lg font-black text-slate-900">{selectedCase?.id}</span>
               <span className={`inline-flex items-center gap-2 px-3 py-1 text-xs font-black rounded ${
-                workflowStatus === 'draft' ? 'bg-amber-100 text-amber-700' :
+                workflowStatus === 'summary_ready' ? 'bg-amber-100 text-amber-700' :
                 workflowStatus === 'under_review' ? 'bg-purple-100 text-purple-700' :
                 'bg-green-100 text-green-700'
               }`}>
-                {workflowStatus === 'draft' && <Edit3 className="w-3 h-3" />}
+                {workflowStatus === 'summary_ready' && <Edit3 className="w-3 h-3" />}
                 {workflowStatus === 'under_review' && <Eye className="w-3 h-3" />}
                 {workflowStatus === 'approved' && <CheckCircle className="w-3 h-3" />}
-                {workflowStatus === 'draft' ? 'Draft' : workflowStatus === 'under_review' ? 'Under Review' : 'Approved'}
+                {workflowStatus === 'summary_ready' ? 'Summary Ready' : workflowStatus === 'under_review' ? 'Under Review' : 'Approved'}
               </span>
+              {/* 4. SAR Ready toggle badge added here */}
+              {isSarReady && <span className="bg-green-100 text-green-800 text-xs font-black px-3 py-1 rounded">SAR READY</span>}
             </div>
             <div className="flex gap-3">
               <button
@@ -744,7 +770,7 @@ export default function SARPlatform() {
                 <div className="bg-green-50 border-l-4 border-green-600 p-4 flex items-start gap-3">
                   <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0" />
                   <div>
-                    <div className="text-sm font-black text-green-900">Hallucination Check Passed</div>
+                    <div className="text-sm font-black text-green-900">Evidence Consistency Validation Passed</div>
                     <div className="text-xs text-green-700 mt-1">
                       All narrative sentences are evidence-backed
                     </div>
@@ -755,7 +781,7 @@ export default function SARPlatform() {
                   <div>
                     <div className="text-sm font-black text-amber-900">1 Tone Calibration</div>
                     <div className="text-xs text-amber-700 mt-1">
-                      Review assertion strength in conclusion
+                      Regulatory-safe wording proportional to proof
                     </div>
                   </div>
                 </div>
@@ -822,7 +848,7 @@ export default function SARPlatform() {
                 <div className="px-6 py-4 bg-cyan-700 border-b border-cyan-800 flex items-center justify-between">
                   <h3 className="text-lg font-black text-white flex items-center gap-2">
                     <FileText className="w-5 h-5" />
-                    Suspicious Activity Report - Draft Narrative
+                    Investigation Summary Report (Internal)
                   </h3>
                   {currentRole === 'analyst' && workflowStatus === 'draft' && (
                     <button
@@ -976,7 +1002,7 @@ export default function SARPlatform() {
                 </div>
               </div>
 
-              {/* Workflow Actions */}
+              {/* 5. Fixed Workflow Actions (Summary Ready State) */}
               <div className="bg-white border border-slate-200 shadow-sm">
                 <div className="px-6 py-4 bg-slate-900 border-b border-slate-800">
                   <h3 className="text-lg font-black text-white flex items-center gap-2">
@@ -985,20 +1011,20 @@ export default function SARPlatform() {
                   </h3>
                 </div>
                 <div className="p-6">
-                  {currentRole === 'analyst' && workflowStatus === 'draft' && (
-                    <div className="flex gap-3">
-                      <button
-                        onClick={submitForReview}
-                        className="flex-1 bg-cyan-700 hover:bg-cyan-800 text-white py-4 px-6 text-sm font-black transition-colors flex items-center justify-center gap-2"
-                      >
-                        <Send className="w-5 h-5" />
-                        Submit for Review
-                      </button>
-                      <button className="px-6 py-4 border-2 border-slate-300 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2">
-                        <Save className="w-5 h-5" />
-                        Save Draft
-                      </button>
-                    </div>
+                  {currentRole === 'analyst' && workflowStatus === 'summary_ready' && (
+                    <>
+                      <div className="text-center text-xs text-slate-500 mb-4 font-bold uppercase tracking-widest">
+                        Analyst Edit → Reviewer Approval → Auditor Trace
+                      </div>
+                      <div className="flex flex-col gap-3">
+                        <button onClick={() => setIsSarReady(true)} className="w-full bg-white border-2 border-cyan-700 text-cyan-700 hover:bg-cyan-50 py-3 px-6 text-sm font-black transition-colors">
+                          Generate Final SAR Draft
+                        </button>
+                        <button onClick={submitForReview} className="w-full bg-cyan-700 hover:bg-cyan-800 text-white py-4 px-6 text-sm font-black transition-colors flex items-center justify-center gap-2">
+                          <Send className="w-5 h-5" /> Send to Reviewer
+                        </button>
+                      </div>
+                    </>
                   )}
                   
                   {currentRole === 'reviewer' && workflowStatus === 'under_review' && (
