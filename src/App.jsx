@@ -1,124 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import { AlertCircle, CheckCircle, Clock, ChevronRight, FileText, Search, Shield, TrendingUp, Users, XCircle, Info, Edit3, Eye, Download, GitBranch, AlertTriangle, Network, Zap, BarChart3, CheckSquare, Save, Send, MessageSquare } from 'lucide-react';
+import React, { useState } from 'react';
+import { 
+  AlertCircle, CheckCircle, Clock, ChevronRight, FileText, Search, Shield, 
+  TrendingUp, Users, XCircle, Info, Edit3, Eye, Download, GitBranch, 
+  AlertTriangle, Network, Zap, BarChart3, CheckSquare, Save, Send, 
+  MessageSquare, Filter, AlertOctagon 
+} from 'lucide-react';
 
-// Mock Data
-const mockCases = [
-  { id: 'BRC-2024-0147', customer: 'Bright Tech Solutions Pvt Ltd', risk: 'High', type: 'Structuring', status: 'Open', date: '2024-02-14', similarCases: 2 },
-  { id: 'BRC-2024-0146', customer: 'Global Imports LLC', risk: 'Medium', type: 'Funnel', status: 'Drafted', date: '2024-02-13', similarCases: 0 },
-  { id: 'BRC-2024-0145', customer: 'Sunrise Traders', risk: 'High', type: 'Geo-risk', status: 'Approved', date: '2024-02-12', similarCases: 1 },
-  { id: 'BRC-2024-0144', customer: 'Metro Textiles Ltd', risk: 'Medium', type: 'Structuring', status: 'Under Review', date: '2024-02-11', similarCases: 0 },
-];
+// Import New Components
+import AnomalyGraph from './components/AnomalyGraph';
+import SimilarCasesWidget from './components/SimilarCasesWidget';
 
-const mockCustomer = {
-  name: 'Bright Tech Solutions Pvt Ltd',
-  accountId: 'BRC-ACC-891234',
-  businessType: 'Software Development',
-  kycDate: '2022-03-15',
-  riskRating: 'High',
-  industry: 'Technology Services',
-  relationship: 'Corporate Banking',
-  officer: 'Sarah Mitchell'
-};
-
-const mockTransactions = [
-  { id: 'TXN-1234', date: '2024-02-01', amount: 485000, counterparty: 'Account #4521', type: 'Credit', flagged: true, source: 'Individual A' },
-  { id: 'TXN-1235', date: '2024-02-01', amount: 490000, counterparty: 'Account #8834', type: 'Credit', flagged: true, source: 'Individual B' },
-  { id: 'TXN-1236', date: '2024-02-02', amount: 475000, counterparty: 'Account #2901', type: 'Credit', flagged: true, source: 'Individual C' },
-  { id: 'TXN-1237', date: '2024-02-02', amount: 498000, counterparty: 'Account #7123', type: 'Credit', flagged: true, source: 'Individual D' },
-  { id: 'TXN-1238', date: '2024-02-03', amount: 5000000, counterparty: 'Dubai Commercial Bank', type: 'Debit', flagged: true, source: 'UAE Entity' },
-  { id: 'TXN-1239', date: '2024-02-05', amount: 120000, counterparty: 'Vendor Payment', type: 'Debit', flagged: false, source: 'Supplier X' },
-  { id: 'TXN-1240', date: '2024-02-01', amount: 488000, counterparty: 'Account #1092', type: 'Credit', flagged: true, source: 'Individual E' },
-  { id: 'TXN-1241', date: '2024-02-02', amount: 492000, counterparty: 'Account #5567', type: 'Credit', flagged: true, source: 'Individual F' },
-];
-
-const mockTypologies = [
-  { type: 'Structuring', confidence: 0.91, description: 'Multiple sub-threshold deposits', riskLevel: 'Critical' },
-  { type: 'Funnel Account', confidence: 0.87, description: 'Rapid aggregation from multiple sources', riskLevel: 'High' },
-  { type: 'Geo-risk', confidence: 0.93, description: 'High-risk jurisdiction transfer detected', riskLevel: 'Critical' },
-];
-
-const graphNodes = [
-  { id: 'customer', label: 'Bright Tech\nSolutions', x: 400, y: 200, type: 'customer' },
-  { id: 'source1', label: 'Individual A\n₹4.85L', x: 150, y: 100, type: 'source' },
-  { id: 'source2', label: 'Individual B\n₹4.90L', x: 150, y: 200, type: 'source' },
-  { id: 'source3', label: 'Individual C\n₹4.75L', x: 150, y: 300, type: 'source' },
-  { id: 'source4', label: '44 More\nAccounts', x: 150, y: 400, type: 'source' },
-  { id: 'dest', label: 'Dubai Commercial\nBank\n₹50L', x: 650, y: 200, type: 'destination' },
-];
-
-const graphEdges = [
-  { from: 'source1', to: 'customer' },
-  { from: 'source2', to: 'customer' },
-  { from: 'source3', to: 'customer' },
-  { from: 'source4', to: 'customer' },
-  { from: 'customer', to: 'dest' },
-];
-
-const initialSarSections = {
-  background: "Bright Tech Solutions Pvt Ltd (BRC-ACC-891234) is a technology services company established in 2022 under Barclays Corporate Banking relationship management. The account has maintained regular business operations with typical software development receivables until the activity period under review.",
-  activity: "During February 1-3, 2024, the account received ₹19.48 lakhs across 47 individual deposits. Each deposit ranged between ₹4.75-4.98 lakhs, systematically positioned below the ₹5 lakh reporting threshold. On February 3, 2024, ₹50 lakhs was transferred to Dubai Commercial Bank within 72 hours of the final deposit cluster.",
-  typology: "The observed pattern aligns with structured deposit activity designed to evade currency transaction reporting requirements. The rapid consolidation of funds from disparate sources into a single beneficiary account exhibits characteristics consistent with funnel account operations. The subsequent cross-border transfer to UAE jurisdictional banking introduces additional geographic risk factors.",
-  regulatory: "This activity triggers reporting obligations under Section 12 of the Prevention of Money Laundering Act, 2002. The transaction pattern demonstrates indicators outlined in RBI Master Direction on KYC (2016) regarding suspicious transaction monitoring. FATF Recommendation 10 guidance on customer due diligence applies to the enhanced risk profile introduced by high-risk jurisdiction exposure.",
-  conclusion: "The systematic structuring of deposits, coupled with rapid foreign remittance to a jurisdiction with known AML vulnerabilities, presents sufficient grounds for filing this Suspicious Transaction Report. Further investigation into the 47 source accounts and the ultimate beneficiary relationship is recommended."
-};
-
-const evidenceMapping = {
-  0: {
-    transactions: [],
-    rule: 'Customer Profile Verification',
-    regulatory: 'RBI KYC Master Direction - Customer Identification',
-    confidence: 0.98,
-    toneIssue: null
-  },
-  1: {
-    transactions: ['TXN-1234', 'TXN-1235', 'TXN-1236', 'TXN-1237', 'TXN-1238'],
-    rule: 'Structuring Pattern Detector',
-    regulatory: 'PMLA Section 12 - Threshold Reporting Requirements',
-    confidence: 0.91,
-    toneIssue: null,
-    details: {
-      amounts: ['₹4.85L', '₹4.90L', '₹4.75L', '₹4.98L'],
-      threshold: '₹5L',
-      deviation: '2-5%'
-    }
-  },
-  2: {
-    transactions: ['TXN-1234', 'TXN-1235', 'TXN-1236', 'TXN-1237', 'TXN-1238'],
-    rule: 'Funnel Account Detector + Geo-Risk Analyzer',
-    regulatory: 'FATF Recommendation 10 - Customer Due Diligence',
-    confidence: 0.87,
-    toneIssue: null
-  },
-  3: {
-    transactions: ['TXN-1238'],
-    rule: 'Regulatory Compliance Mapper',
-    regulatory: 'PMLA 2002 + RBI Master Direction on KYC',
-    confidence: 0.95,
-    toneIssue: null
-  },
-  4: {
-    transactions: ['TXN-1234', 'TXN-1235', 'TXN-1236', 'TXN-1237', 'TXN-1238'],
-    rule: 'Aggregated Risk Assessment',
-    regulatory: 'FATF STR Filing Guidance',
-    confidence: 0.89,
-    toneIssue: {
-      original: "systematic structuring",
-      issue: "Assertion strength too high without direct customer intent evidence",
-      calibrated: "observed pattern of structured deposits"
-    }
-  }
-};
-
-const hallucinationChecks = [
-  { sentence: 0, status: 'pass', issue: null },
-  { sentence: 1, status: 'pass', issue: null },
-  { sentence: 2, status: 'pass', issue: null },
-  { sentence: 3, status: 'pass', issue: null },
-  { sentence: 4, status: 'warning', issue: 'Tone calibration recommended' },
-];
+// Import Data
+import { 
+  mockAlerts, mockAnomalyData, mockSimilarCasesList, mockCases, mockCustomer, 
+  mockTransactions, mockTypologies, graphNodes, graphEdges, 
+  initialSarSections, evidenceMapping, hallucinationChecks 
+} from './data/mockData';
 
 export default function SARPlatform() {
-  const [currentScreen, setCurrentScreen] = useState('dashboard');
+  const [currentScreen, setCurrentScreen] = useState('alerts');
+  const [selectedAlert, setSelectedAlert] = useState(mockAlerts[0]);
   const [selectedCase, setSelectedCase] = useState(null);
   const [selectedSentence, setSelectedSentence] = useState(null);
   const [sarGenerated, setSarGenerated] = useState(false);
@@ -209,7 +110,8 @@ export default function SARPlatform() {
           </div>
           <div className="flex items-center gap-8">
             <div className="flex gap-6">
-              <button className="text-white hover:text-cyan-200 text-sm font-semibold transition-colors">Dashboard</button>
+              <button onClick={() => setCurrentScreen('alerts')} className={`text-sm font-semibold transition-colors ${currentScreen === 'alerts' ? 'text-cyan-200 border-b-2 border-cyan-200' : 'text-white hover:text-cyan-200'}`}>Alerts Queue</button>
+              <button onClick={() => setCurrentScreen('dashboard')} className={`text-sm font-semibold transition-colors ${currentScreen === 'dashboard' ? 'text-cyan-200 border-b-2 border-cyan-200' : 'text-white hover:text-cyan-200'}`}>Dashboard</button>
               <button className="text-white hover:text-cyan-200 text-sm font-semibold transition-colors">Cases</button>
               <button className="text-white hover:text-cyan-200 text-sm font-semibold transition-colors">Reports</button>
               <button className="text-white hover:text-cyan-200 text-sm font-semibold transition-colors">Analytics</button>
@@ -253,6 +155,101 @@ export default function SARPlatform() {
           </div>
         </div>
       </div>
+
+      {/* Alerts Screen (Upgrade 3) */}
+      {currentScreen === 'alerts' && (
+        <div className="max-w-[1600px] mx-auto px-8 py-8">
+          <div className="mb-8">
+            <h2 className="text-4xl font-black text-slate-900 mb-3" style={{ fontFamily: 'system-ui, sans-serif' }}>
+              Alert Intake & Validation
+            </h2>
+            <p className="text-slate-600 text-lg">Triage raw system alerts before escalating to investigation cases.</p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-6">
+            <div className="col-span-1 bg-white border border-slate-200 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                <h3 className="font-black text-slate-700 flex items-center gap-2">
+                  <Filter className="w-4 h-4" /> Incoming Queue
+                </h3>
+                <span className="bg-cyan-100 text-cyan-800 text-xs font-bold px-2 py-1 rounded">{mockAlerts.length} Pending</span>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {mockAlerts.map(alert => (
+                  <div 
+                    key={alert.id} 
+                    onClick={() => setSelectedAlert(alert)}
+                    className={`p-4 cursor-pointer transition-all ${selectedAlert?.id === alert.id ? 'bg-cyan-50 border-l-4 border-cyan-600' : 'hover:bg-slate-50 border-l-4 border-transparent'}`}
+                  >
+                    <div className="flex justify-between items-start mb-1">
+                      <span className="font-mono text-xs font-bold text-slate-500">{alert.id}</span>
+                      <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${alert.risk === 'Critical' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{alert.risk}</span>
+                    </div>
+                    <div className="font-bold text-slate-900 text-sm">{alert.customer}</div>
+                    <div className="text-xs text-slate-600 mt-1">{alert.type}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="col-span-2 space-y-6">
+              {selectedAlert ? (
+                <div className="bg-white border border-slate-200 shadow-sm p-8">
+                  <div className="flex justify-between items-start border-b border-slate-200 pb-6 mb-6">
+                    <div>
+                      <h2 className="text-2xl font-black text-slate-900">{selectedAlert.customer}</h2>
+                      <div className="flex items-center gap-4 mt-2 text-sm text-slate-600 font-semibold">
+                        <span>Trigger: {selectedAlert.type}</span>
+                        <span>•</span>
+                        <span>Date: {selectedAlert.date}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <h3 className="text-sm font-black text-slate-500 uppercase tracking-widest mb-4">AI Validation Basis</h3>
+                  <div className="grid grid-cols-2 gap-4 mb-8">
+                    <div className="bg-red-50 border border-red-100 p-4 rounded-lg">
+                      <div className="text-red-800 font-bold mb-1 flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4" /> Baseline Deviation Check
+                      </div>
+                      <div className="text-sm text-red-900">
+                        Activity is <span className="font-black text-red-600">{selectedAlert.deviation} above baseline</span> (Customer norm: ₹48K/day).
+                      </div>
+                    </div>
+                    <div className="bg-amber-50 border border-amber-100 p-4 rounded-lg">
+                      <div className="text-amber-800 font-bold mb-1 flex items-center gap-2">
+                        <AlertOctagon className="w-4 h-4" /> Typology Threshold
+                      </div>
+                      <div className="text-sm text-amber-900">
+                        Funnel account behavior confidence: <span className="font-black text-amber-600">{(selectedAlert.typologyMatch * 100).toFixed(0)}%</span> (70% threshold met).
+                      </div>
+                    </div>
+                    <div className="col-span-2 bg-slate-50 border border-slate-200 p-4 rounded-lg">
+                      <div className="text-slate-700 font-bold mb-1 flex items-center gap-2">
+                        <Clock className="w-4 h-4" /> Repeat History Check
+                      </div>
+                      <div className="text-sm text-slate-600">
+                        Similar structuring alerts flagged for this entity in the last 90 days. High-risk jurisdiction (UAE) involved in secondary transfers.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4 pt-4 border-t border-slate-200">
+                    <button onClick={() => setCurrentScreen('dashboard')} className="flex-1 bg-cyan-700 hover:bg-cyan-800 text-white py-3 px-4 font-bold rounded flex items-center justify-center gap-2 transition-colors">
+                      <CheckCircle className="w-5 h-5" /> Escalate → Open Investigation Case
+                    </button>
+                    <button onClick={() => alert('Alert dismissed as False Positive.')} className="px-6 py-3 border-2 border-slate-200 text-slate-600 font-bold hover:bg-slate-50 rounded transition-colors">
+                      Dismiss (False Positive)
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-slate-50 border border-slate-200 h-full flex items-center justify-center text-slate-500 font-semibold">Select an alert to view validation details</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Dashboard Screen */}
       {currentScreen === 'dashboard' && (
@@ -314,7 +311,6 @@ export default function SARPlatform() {
               <div
                 key={caseData.id}
                 className="border-b border-slate-100 px-8 py-5 hover:bg-cyan-50 transition-all cursor-pointer group"
-                style={{ animationDelay: `${idx * 50}ms` }}
               >
                 <div className="grid grid-cols-7 items-center">
                   <div className="font-mono text-sm font-bold text-slate-900">{caseData.id}</div>
@@ -452,6 +448,10 @@ export default function SARPlatform() {
                     {selectedTransactions.length} of {mockTransactions.filter(t => t.flagged).length} flagged transactions selected
                   </div>
                 </div>
+
+                {/* UPGRADE 1: Transaction Anomaly Graph */}
+                <AnomalyGraph data={mockAnomalyData} />
+
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-slate-50 border-b border-slate-200">
@@ -651,6 +651,9 @@ export default function SARPlatform() {
                 </div>
               </div>
 
+              {/* UPGRADE 2: Similar Cases Detected */}
+              <SimilarCasesWidget cases={mockSimilarCasesList} />
+
               {/* Generate SAR Button */}
               <button
                 onClick={generateSAR}
@@ -669,23 +672,6 @@ export default function SARPlatform() {
                   </>
                 )}
               </button>
-
-              {selectedCase?.similarCases > 0 && (
-                <div className="bg-purple-50 border border-purple-200 p-4">
-                  <div className="flex items-start gap-3">
-                    <GitBranch className="w-5 h-5 text-purple-700 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <div className="text-sm font-bold text-purple-900 mb-1">Similar Cases Detected</div>
-                      <div className="text-xs text-purple-700 mb-3">
-                        Found {selectedCase.similarCases} cases with matching typology patterns
-                      </div>
-                      <button className="text-xs font-bold text-purple-700 hover:text-purple-900 underline">
-                        View Similar Cases →
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               <div className="bg-cyan-50 border border-cyan-200 p-4">
                 <div className="text-xs font-black text-cyan-900 uppercase tracking-widest mb-2">Quick Actions</div>
