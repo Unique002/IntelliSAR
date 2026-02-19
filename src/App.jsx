@@ -113,7 +113,7 @@ export default function SARPlatform() {
             </div>
             <div>
               <h1 className="text-2xl font-black text-white tracking-tight" style={{ fontFamily: 'system-ui, sans-serif' }}>
-                BARCLAYS SENTINEL
+                INTELLISAR
               </h1>
               <div className="text-xs text-cyan-200 uppercase tracking-widest font-semibold">AML Compliance Platform</div>
             </div>
