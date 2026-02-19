@@ -850,7 +850,7 @@ export default function SARPlatform() {
                     <FileText className="w-5 h-5" />
                     Investigation Summary Report (Internal)
                   </h3>
-                  {currentRole === 'analyst' && workflowStatus === 'draft' && (
+                  {currentRole === 'analyst' && workflowStatus === 'summary_ready' && (
                     <button
                       onClick={() => setIsEditing(!isEditing)}
                       className="inline-flex items-center gap-2 px-3 py-1 bg-white text-cyan-700 text-xs font-bold hover:bg-cyan-50 transition-colors"
@@ -874,7 +874,7 @@ export default function SARPlatform() {
                          section === 'regulatory' ? 'Regulatory Relevance' :
                          'Conclusion'}
                       </h4>
-                      {isEditing && currentRole === 'analyst' && workflowStatus === 'draft' ? (
+                      {isEditing && currentRole === 'analyst' && workflowStatus === 'summary_ready' ? (
                         <textarea
                           value={content}
                           onChange={(e) => updateSection(section, e.target.value)}
@@ -917,7 +917,7 @@ export default function SARPlatform() {
               </div>
 
               {/* Analyst Notes Section */}
-              {currentRole === 'analyst' && workflowStatus === 'draft' && (
+              {currentRole === 'analyst' && workflowStatus === 'summary_ready' && (
                 <div className="bg-white border border-slate-200 shadow-sm">
                   <div className="px-6 py-4 bg-slate-900 border-b border-slate-800">
                     <h3 className="text-lg font-black text-white flex items-center gap-2">
