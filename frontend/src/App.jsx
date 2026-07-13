@@ -59,7 +59,7 @@ export default function SARPlatform() {
   const [activeModal, setActiveModal] = useState(null);
 
   const fetchDashboard = () => {
-    fetch('http://localhost:8080/api/dashboard')
+    fetch('https://intellisar-production.up.railway.app/api/dashboard')
       .then(res => res.json())
       .then(data => {
         const mappedData = data.map(item => ({
@@ -94,7 +94,7 @@ export default function SARPlatform() {
     setShowGraph(false);
     
     if (caseData.systemStatus === 'Qualified') {
-       fetch(`http://localhost:8080/api/evidence/${caseData.id}`)
+       fetch(`https://intellisar-production.up.railway.app/api/evidence/${caseData.id}`)
          .then(res => res.json())
          .then(data => {
             setEvidencePack(data);
@@ -134,7 +134,7 @@ export default function SARPlatform() {
   const exportSAR = () => alert('Exporting SAR + Audit Report PDF...\n\nIncludes:\n- Full narrative\n- Transaction evidence trail\n- Typology detection results\n- Defensibility score breakdown\n- Analyst notes');
  
   const submitForReview = () => {
-    fetch('http://localhost:8080/api/governance/signoff', {
+    fetch('https://intellisar-production.up.railway.app/api/governance/signoff', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ case_id: selectedCase.id, action: 'submit_for_review', role: currentRole, notes: analystNotes })
@@ -150,7 +150,7 @@ export default function SARPlatform() {
 
 
   const approveSAR = () => {
-    fetch('http://localhost:8080/api/governance/signoff', {
+    fetch('https://intellisar-production.up.railway.app/api/governance/signoff', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ case_id: selectedCase.id, action: 'approve', role: currentRole, notes: analystNotes })
@@ -167,7 +167,7 @@ export default function SARPlatform() {
 
 
   const rejectSAR = () => {
-    fetch('http://localhost:8080/api/governance/signoff', {
+    fetch('https://intellisar-production.up.railway.app/api/governance/signoff', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ case_id: selectedCase.id, action: 'reject', role: currentRole, notes: analystNotes })
@@ -405,7 +405,7 @@ export default function SARPlatform() {
                           {currentRole === 'reviewer' && item.workflowStatus === 'approved' && (
                              <button onClick={(e) => { 
                                e.stopPropagation(); 
-                               fetch('http://localhost:8080/api/governance/signoff', {
+                               fetch('https://intellisar-production.up.railway.app/api/governance/signoff', {
                                  method: 'POST',
                                  headers: { 'Content-Type': 'application/json' },
                                  body: JSON.stringify({ case_id: item.id, action: 'reject', role: 'reviewer', notes: 'Approval Revoked' })
