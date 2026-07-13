@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   AlertCircle, CheckCircle, Clock, ChevronRight, FileText, Search, Shield,
   TrendingUp, Users, XCircle, Info, Edit3, Eye, Download, GitBranch,
@@ -12,12 +12,7 @@ import AnomalyGraph from './components/AnomalyGraph';
 import SimilarCasesWidget from './components/SimilarCasesWidget';
 
 
-// Import Data (Ensure this is in your data folder)
-import {
-  mockAlerts, mockAnomalyData, mockSimilarCasesList, mockCases, mockCustomer,
-  mockTransactions, mockTypologies, graphNodes, graphEdges,
-  initialSarSections, evidenceMapping, hallucinationChecks
-} from './data/mockData';
+// Import Data is now driven entirely by the EvidencePack fetched from PostgreSQL
 
 
 export default function SARPlatform() {
@@ -25,31 +20,59 @@ export default function SARPlatform() {
   const [selectedCase, setSelectedCase] = useState(null);
   const [selectedSentence, setSelectedSentence] = useState(null);
   const [selectedTransactions, setSelectedTransactions] = useState([]);
-  const [sarSections, setSarSections] = useState(initialSarSections);
+  const [sarSections, setSarSections] = useState({
+    background: '', activity: '', typology: '', regulatory: '', conclusion: ''
+  });
   const [isEditing, setIsEditing] = useState(false);
   const [analystNotes, setAnalystNotes] = useState('');
   const [showGraph, setShowGraph] = useState(false);
-  const [currentRole, setCurrentRole] = useState('analyst');
+  const [currentRole, setCurrentRole] = useState(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [workflowStatus, setWorkflowStatus] = useState('summary_ready');
   const [showToneCalibration, setShowToneCalibration] = useState(false);
   const [hoveredNode, setHoveredNode] = useState(null);
   const [approvalDate, setApprovalDate] = useState(null); // Added for Approval Banner
 
+  const [allDashboardItems, setAllDashboardItems] = useState([]);
+  const [evidencePack, setEvidencePack] = useState(null);
 
-  // Merge Cases and Alerts for the Unified Dashboard
-  // In a real app, these would come from your backend DB
-  const qualifiedAlerts = mockCases.map(c => ({...c, systemStatus: 'Qualified'}));
-  const rejectedAlerts = mockAlerts.map((a, index) => ({
-    id: `REJ-${a.id}`,
-    customer: a.customer,
-    type: a.type,
-    risk: a.risk === 'Critical' ? 'Medium' : 'Low', // Adjusted for dismissed logic
-    systemStatus: 'Dismissed',
-    reason: 'Activity within normal baseline variance. Typology threshold (70%) not met. Counterparties are low-risk domestic entities.',
-    similarCases: 0
-  }));
- 
-  const allDashboardItems = [...qualifiedAlerts, ...rejectedAlerts];
+  // Derive mock data dynamically from PostgreSQL evidence pack if available
+  const mockCustomer = evidencePack?.kyc_snapshot || {};
+  const mockTransactions = evidencePack?.transactions || [];
+  const mockAnomalyData = evidencePack?.anomaly_data || [];
+  const mockSimilarCasesList = evidencePack?.similar_cases || [];
+  const mockTypologies = evidencePack?.typologies || [];
+  
+  // Provide fallback coordinates for older database records that lack x/y
+  const rawGraphNodes = evidencePack?.graph_data?.nodes || [];
+  const graphNodes = rawGraphNodes.map((n, i) => {
+    if (n.x !== undefined && n.y !== undefined) return n;
+    if (n.id === 'cust') return { ...n, x: 300, y: 250, type: 'customer' };
+    const angle = i * ((2 * Math.PI) / Math.max(1, rawGraphNodes.length - 1));
+    return { ...n, x: 300 + 150 * Math.cos(angle), y: 250 + 150 * Math.sin(angle), type: 'source' };
+  });
+  
+  const graphEdges = evidencePack?.graph_data?.edges || [];
+  const evidenceMapping = evidencePack?.evidence_mapping || {};
+  const hallucinationChecks = evidencePack?.hallucination_checks || [];
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetch('http://localhost:8080/api/dashboard')
+        .then(res => res.json())
+        .then(data => {
+          const mappedData = data.map(item => ({
+             ...item,
+             systemStatus: item.systemStatus,
+             reason: item.reason,
+             risk: item.risk === 'High' || item.risk === 'Medium' ? 'High' : 'Low',
+             workflowStatus: item.workflowStatus
+          }));
+          setAllDashboardItems(mappedData);
+        })
+        .catch(err => console.error("Error fetching dashboard:", err));
+    }
+  }, [isLoggedIn]);
 
 
   // --- AUTOMATED WORKFLOW HANDLERS ---
@@ -57,9 +80,25 @@ export default function SARPlatform() {
   // Open the Evidence Box (Works for both Rejected and Qualified)
   const openEvidenceBox = (caseData) => {
     setSelectedCase(caseData);
+    
+    // Route everyone to the investigation screen so they can see all evidence
     setCurrentScreen('investigation');
+    
     setSelectedTransactions([]);
     setShowGraph(false);
+    
+    if (caseData.systemStatus === 'Qualified') {
+       fetch(`http://localhost:8080/api/evidence/${caseData.id}`)
+         .then(res => res.json())
+         .then(data => {
+            setEvidencePack(data);
+            setWorkflowStatus(data.workflow_status || 'summary_ready');
+            if (data.sar_sections) {
+              setSarSections(data.sar_sections);
+            }
+         })
+         .catch(err => console.error("Error fetching evidence:", err));
+    }
   };
 
 
@@ -89,24 +128,71 @@ export default function SARPlatform() {
   const exportSAR = () => alert('Exporting SAR + Audit Report PDF...\n\nIncludes:\n- Full narrative\n- Transaction evidence trail\n- Typology detection results\n- Defensibility score breakdown\n- Analyst notes');
  
   const submitForReview = () => {
-    setWorkflowStatus('under_review');
-    alert('Edited SAR submitted for compliance review\n\nAssigned to: Senior Compliance Officer');
+    fetch('http://localhost:8080/api/governance/signoff', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ case_id: selectedCase.id, action: 'submit_for_review', role: currentRole, notes: analystNotes })
+    })
+    .then(res => res.json())
+    .then(data => {
+      setWorkflowStatus(data.new_state);
+      alert('Edited SAR submitted for compliance review\\n\\nAssigned to: Senior Compliance Officer');
+      setCurrentScreen('dashboard');
+    })
+    .catch(err => console.error("Error submitting for review:", err));
   };
 
 
   const approveSAR = () => {
-    setWorkflowStatus('approved');
-    setApprovalDate(new Date().toLocaleDateString()); // Captures exact date of approval
-    alert('SAR Approved and filed with FIU-IND\n\nFiling confirmation: FIU-2024-0147');
+    fetch('http://localhost:8080/api/governance/signoff', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ case_id: selectedCase.id, action: 'approve', role: currentRole, notes: analystNotes })
+    })
+    .then(res => res.json())
+    .then(data => {
+      setWorkflowStatus(data.new_state);
+      setApprovalDate(new Date().toLocaleDateString());
+      alert('SAR Approved and filed with FIU-IND\\n\\nFiling confirmation: FIU-2024-0147');
+      setCurrentScreen('dashboard');
+    })
+    .catch(err => console.error("Error approving SAR:", err));
   };
 
 
   const rejectSAR = () => {
-    setWorkflowStatus('summary_ready');
-    setCurrentRole('analyst');
-    alert('Returned to analyst for revision\n\nReviewer feedback attached.');
+    fetch('http://localhost:8080/api/governance/signoff', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ case_id: selectedCase.id, action: 'reject', role: currentRole, notes: analystNotes })
+    })
+    .then(res => res.json())
+    .then(data => {
+      setWorkflowStatus(data.new_state);
+      alert('Returned to analyst for revision\\n\\nReviewer feedback attached.');
+      setCurrentScreen('dashboard');
+    })
+    .catch(err => console.error("Error rejecting SAR:", err));
   };
 
+
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white max-w-md w-full rounded shadow-lg p-8 text-center border-t-4 border-cyan-700">
+           <div className="w-16 h-16 bg-cyan-700 text-white rounded flex items-center justify-center font-black text-3xl mx-auto mb-4">B</div>
+           <h1 className="text-2xl font-black text-slate-900 mb-2" style={{ fontFamily: 'system-ui, sans-serif' }}>INTELLISAR LOGIN</h1>
+           <p className="text-sm text-slate-500 mb-8">Select your role to access the workspace.</p>
+           
+           <div className="space-y-3">
+             <button onClick={() => { setCurrentRole('analyst'); setIsLoggedIn(true); }} className="w-full bg-cyan-700 hover:bg-cyan-800 text-white font-bold py-3 px-4 rounded transition-colors text-sm tracking-wide">Login as Analyst</button>
+             <button onClick={() => { setCurrentRole('reviewer'); setIsLoggedIn(true); }} className="w-full bg-purple-700 hover:bg-purple-800 text-white font-bold py-3 px-4 rounded transition-colors text-sm tracking-wide">Login as Reviewer</button>
+             <button onClick={() => { setCurrentRole('auditor'); setIsLoggedIn(true); }} className="w-full bg-slate-700 hover:bg-slate-800 text-white font-bold py-3 px-4 rounded transition-colors text-sm tracking-wide">Login as Auditor</button>
+           </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 overflow-x-hidden">
@@ -115,7 +201,7 @@ export default function SARPlatform() {
         <div className="max-w-[1600px] mx-auto px-4 md:px-8 py-4 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 bg-white rounded flex items-center justify-center flex-shrink-0">
-              <div className="text-cyan-700 font-black text-xl">B</div>
+              <Shield className="w-6 h-6 text-cyan-700" />
             </div>
             <div>
               <h1 className="text-xl md:text-2xl font-black text-white tracking-tight" style={{ fontFamily: 'system-ui, sans-serif' }}>
@@ -127,9 +213,6 @@ export default function SARPlatform() {
           <div className="flex items-center gap-4 md:gap-8">
             <div className="hidden lg:flex gap-6">
               <button onClick={() => setCurrentScreen('dashboard')} className={`text-sm font-semibold transition-colors ${currentScreen === 'dashboard' ? 'text-cyan-200 border-b-2 border-cyan-200' : 'text-white hover:text-cyan-200'}`}>Analyst Dashboard</button>
-              <button className="text-white hover:text-cyan-200 text-sm font-semibold transition-colors">Cases</button>
-              <button className="text-white hover:text-cyan-200 text-sm font-semibold transition-colors">Reports</button>
-              <button className="text-white hover:text-cyan-200 text-sm font-semibold transition-colors">Analytics</button>
             </div>
             <div className="flex items-center gap-3 pl-0 md:pl-6 border-l-0 md:border-l border-cyan-600">
               <div className="text-right hidden sm:block">
@@ -139,23 +222,16 @@ export default function SARPlatform() {
               <div className="w-10 h-10 bg-cyan-900 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
                 {currentRole === 'analyst' ? 'AN' : currentRole === 'reviewer' ? 'RV' : 'AD'}
               </div>
+              <button onClick={() => { setIsLoggedIn(false); setCurrentRole(null); }} className="ml-4 text-xs font-bold text-cyan-200 hover:text-white transition-colors border border-cyan-600 px-3 py-1.5 rounded">
+                Logout
+              </button>
             </div>
           </div>
         </div>
       </header>
 
 
-      {/* ROLE SWITCHER */}
-      <div className="bg-amber-50 border-b border-amber-200 py-2">
-        <div className="max-w-[1600px] mx-auto px-4 md:px-8 flex flex-wrap items-center justify-between gap-2">
-          <div className="text-xs text-amber-700 font-semibold">DEMO MODE: Switch roles to see different workflow views</div>
-          <div className="flex flex-wrap gap-2">
-            <button onClick={() => setCurrentRole('analyst')} className={`px-3 py-1 text-xs font-bold transition-all ${currentRole === 'analyst' ? 'bg-cyan-700 text-white' : 'bg-white text-cyan-700 hover:bg-cyan-50'}`}>Analyst View</button>
-            <button onClick={() => setCurrentRole('reviewer')} className={`px-3 py-1 text-xs font-bold transition-all ${currentRole === 'reviewer' ? 'bg-cyan-700 text-white' : 'bg-white text-cyan-700 hover:bg-cyan-50'}`}>Reviewer View</button>
-            <button onClick={() => setCurrentRole('auditor')} className={`px-3 py-1 text-xs font-bold transition-all ${currentRole === 'auditor' ? 'bg-cyan-700 text-white' : 'bg-white text-cyan-700 hover:bg-cyan-50'}`}>Auditor View</button>
-          </div>
-        </div>
-      </div>
+      {/* ROLE SWITCHER REMOVED FOR REAL LOGIN */}
 
 
       {/* ------------------------------------------------------------------------- */}
@@ -182,7 +258,7 @@ export default function SARPlatform() {
               </div>
             </div>
             <div className="bg-white p-6 border-l-4 border-amber-500 shadow-sm hover:shadow-md transition-shadow">
-              <div className="text-3xl font-black text-slate-900">{rejectedAlerts.length}</div>
+              <div className="text-3xl font-black text-slate-900">{allDashboardItems.filter(item => item.systemStatus === 'Dismissed').length}</div>
               <div className="text-xs text-slate-600 uppercase tracking-widest mt-2 font-semibold">Dismissed as Noise</div>
               <div className="mt-3 flex items-center gap-2">
                 <Shield className="w-4 h-4 text-amber-500" />
@@ -190,7 +266,7 @@ export default function SARPlatform() {
               </div>
             </div>
             <div className="bg-white p-6 border-l-4 border-green-600 shadow-sm hover:shadow-md transition-shadow">
-              <div className="text-3xl font-black text-slate-900">{qualifiedAlerts.length}</div>
+              <div className="text-3xl font-black text-slate-900">{allDashboardItems.filter(item => item.systemStatus === 'Qualified').length}</div>
               <div className="text-xs text-slate-600 uppercase tracking-widest mt-2 font-semibold">Qualified Alerts</div>
               <div className="mt-3 flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-green-600" />
@@ -198,7 +274,7 @@ export default function SARPlatform() {
               </div>
             </div>
             <div className="bg-white p-6 border-l-4 border-cyan-600 shadow-sm hover:shadow-md transition-shadow">
-              <div className="text-3xl font-black text-slate-900">{qualifiedAlerts.length}</div>
+              <div className="text-3xl font-black text-slate-900">{allDashboardItems.filter(item => item.systemStatus === 'Qualified').length}</div>
               <div className="text-xs text-slate-600 uppercase tracking-widest mt-2 font-semibold">Pending Review</div>
               <div className="mt-3 flex items-center gap-2">
                 <Clock className="w-4 h-4 text-cyan-600" />
@@ -221,7 +297,10 @@ export default function SARPlatform() {
               </div>
             </div>
             <div className="min-w-[900px]">
-              {allDashboardItems.map((item, idx) => (
+              {allDashboardItems.filter(item => {
+                // Show all alerts to all roles for seamless demonstration
+                return true;
+              }).map((item, idx) => (
                 <div key={item.id} className="border-b border-slate-100 px-8 py-5 hover:bg-cyan-50 transition-all cursor-pointer group">
                   <div className="grid grid-cols-7 items-center">
                     <div className="font-mono text-sm font-bold text-slate-900">{item.id}</div>
@@ -947,10 +1026,163 @@ export default function SARPlatform() {
                )}
             </div>
           </div>
-
-
         </div>
       )}
+
+
+      {/* ------------------------------------------------------------------------- */}
+      {/* SCREEN 4: SIMPLIFIED REVIEWER / AUDITOR VIEW                              */}
+      {/* ------------------------------------------------------------------------- */}
+      {currentScreen === 'simplified-review' && (
+        <div className="max-w-[1600px] mx-auto px-4 md:px-8 py-8">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-8">
+            <div className="flex flex-wrap items-center gap-3 md:gap-4">
+              <button onClick={() => setCurrentScreen('dashboard')} className="text-cyan-700 hover:text-cyan-900 text-sm font-bold transition-colors">
+                ← Back to Dashboard
+              </button>
+              <span className="text-slate-400 hidden sm:inline">|</span>
+              <span className="font-mono text-lg font-black text-slate-900">SAR Review: {selectedCase?.id}</span>
+              <span className={`inline-flex items-center gap-2 px-3 py-1 text-xs font-black rounded ${
+                workflowStatus === 'summary_ready' ? 'bg-amber-100 text-amber-700' :
+                workflowStatus === 'under_review' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'
+              }`}>
+                {workflowStatus === 'summary_ready' && <Edit3 className="w-3 h-3" />}
+                {workflowStatus === 'under_review' && <Eye className="w-3 h-3" />}
+                {workflowStatus === 'approved' && <CheckCircle className="w-3 h-3" />}
+                {workflowStatus === 'summary_ready' ? 'Draft Review' : workflowStatus === 'under_review' ? 'Under Review' : 'Approved'}
+              </span>
+            </div>
+            {currentRole === 'auditor' && (
+               <button onClick={exportSAR} className="bg-cyan-600 hover:bg-cyan-700 text-white py-2 px-4 font-bold rounded inline-flex items-center gap-2 transition-colors">
+                  <Download className="w-4 h-4" /> Export Audit Package
+               </button>
+            )}
+          </div>
+
+          {workflowStatus === 'approved' && (
+            <div className="bg-green-50 border-2 border-green-400 py-6 px-6 rounded-lg shadow-sm mb-6 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <CheckCircle className="w-8 h-8 text-green-600" />
+                <div>
+                  <h2 className="text-xl font-black text-green-900">SAR Approved & Filed</h2>
+                  <p className="text-green-800 text-sm font-medium">Filed with FIU-IND on {approvalDate || new Date().toLocaleDateString()}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            {/* Left Column - Final SAR Output */}
+            <div className="col-span-1 xl:col-span-2 space-y-6">
+              <div className="bg-white border border-slate-200 shadow-sm rounded overflow-hidden">
+                <div className="px-6 py-4 bg-slate-900 border-b border-slate-800">
+                  <h3 className="text-lg font-black text-white flex items-center gap-2">
+                    <FileText className="w-5 h-5 flex-shrink-0" />
+                    Final Suspicious Activity Report (SAR)
+                  </h3>
+                </div>
+                <div className="p-6 space-y-6">
+                  {Object.entries(sarSections).map(([section, content], sectionIdx) => (
+                    <div key={section} className="border-b border-slate-100 pb-6 last:border-0 last:pb-0">
+                      <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">
+                        {section === 'background' ? 'Customer Background' :
+                         section === 'activity' ? 'Observed Activity' :
+                         section === 'typology' ? 'Typology Mapping' :
+                         section === 'regulatory' ? 'Regulatory Relevance' : 'Conclusion'}
+                      </h4>
+                      <p className="text-sm text-slate-800 leading-relaxed font-medium">
+                        {content}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Analyst Notes if available */}
+              {evidencePack?.analyst_notes && (
+                <div className="bg-blue-50 border border-blue-200 p-6 rounded">
+                   <h3 className="text-sm font-black text-blue-900 mb-2 flex items-center gap-2">
+                     <MessageSquare className="w-4 h-4" /> Analyst Context Notes
+                   </h3>
+                   <p className="text-sm text-blue-800">{evidencePack.analyst_notes}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Right Column - Supporting Evidence */}
+            <div className="space-y-6">
+               <div className="bg-white border border-slate-200 shadow-sm rounded overflow-hidden">
+                 <div className="px-6 py-4 bg-slate-100 border-b border-slate-200">
+                   <h3 className="text-sm font-black text-slate-800 flex items-center gap-2">
+                     <Shield className="w-4 h-4" /> Supporting Evidence
+                   </h3>
+                 </div>
+                 <div className="p-4 space-y-4">
+                    <div>
+                      <div className="text-xs text-slate-500 font-bold uppercase mb-2">Customer</div>
+                      <div className="text-sm font-semibold text-slate-900">{selectedCase?.customer}</div>
+                      <div className="text-xs text-slate-600">{mockCustomer?.businessType || 'N/A'} - {mockCustomer?.industry || 'N/A'}</div>
+                    </div>
+                    <div className="border-t border-slate-100 pt-4">
+                      <div className="text-xs text-slate-500 font-bold uppercase mb-2">Flagged Transactions</div>
+                      <div className="space-y-2">
+                        {mockTransactions.filter(t => t.flagged).map(txn => (
+                           <div key={txn.id} className="bg-slate-50 p-2 rounded border border-slate-200 text-xs">
+                             <div className="flex justify-between font-bold text-slate-700 mb-1">
+                               <span className="font-mono">{txn.id}</span>
+                               <span>₹{(txn.amount / 100000).toFixed(2)}L</span>
+                             </div>
+                             <div className="text-slate-500 truncate">{txn.source}</div>
+                           </div>
+                        ))}
+                      </div>
+                    </div>
+                 </div>
+               </div>
+
+               {/* Immutable Audit Trail */}
+               <div className="bg-slate-900 border border-slate-800 shadow-sm rounded overflow-hidden">
+                 <div className="px-6 py-4 bg-slate-800 border-b border-slate-700">
+                   <h3 className="text-sm font-black text-white flex items-center gap-2">
+                     <Lock className="w-4 h-4" /> Immutable Audit Trail
+                   </h3>
+                 </div>
+                 <div className="p-4 space-y-4">
+                    <div className="flex gap-3">
+                       <div className="w-8 h-8 rounded-full bg-cyan-700 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">AN</div>
+                       <div>
+                         <div className="text-sm font-bold text-white">Analyst Submission</div>
+                         <div className="text-xs text-slate-400">SAR drafted and submitted for review.</div>
+                       </div>
+                    </div>
+                    {workflowStatus === 'approved' && (
+                      <div className="flex gap-3 relative before:absolute before:left-4 before:-top-4 before:h-4 before:w-0.5 before:bg-slate-700">
+                         <div className="w-8 h-8 rounded-full bg-purple-700 text-white flex items-center justify-center text-xs font-bold flex-shrink-0 z-10">RV</div>
+                         <div>
+                           <div className="text-sm font-bold text-white">Reviewer Approval</div>
+                           <div className="text-xs text-green-400">Approved and Finalized.</div>
+                         </div>
+                      </div>
+                    )}
+                 </div>
+               </div>
+
+               {/* Reviewer Action Buttons */}
+               {currentRole === 'reviewer' && workflowStatus === 'under_review' && (
+                 <div className="space-y-3 pt-4">
+                   <button onClick={approveSAR} className="w-full bg-green-600 hover:bg-green-700 text-white py-3 px-4 font-black rounded flex items-center justify-center gap-2 transition-colors">
+                     <CheckCircle className="w-5 h-5" /> Approve SAR & File
+                   </button>
+                   <button onClick={rejectSAR} className="w-full bg-white border-2 border-red-200 text-red-600 hover:bg-red-50 py-3 px-4 font-black rounded flex items-center justify-center gap-2 transition-colors">
+                     <XCircle className="w-5 h-5" /> Reject to Analyst
+                   </button>
+                 </div>
+               )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

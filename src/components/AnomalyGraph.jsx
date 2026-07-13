@@ -14,13 +14,13 @@ export default function AnomalyGraph({ data }) {
       <div className="h-48 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-            <XAxis dataKey="date" tick={{fontSize: 12, fill: '#64748b'}} axisLine={false} tickLine={false} />
-            <YAxis tickFormatter={(val) => `₹${val/100000}L`} tick={{fontSize: 12, fill: '#64748b'}} axisLine={false} tickLine={false} />
-            <Tooltip cursor={{fill: 'transparent'}} formatter={(value) => `₹${value.toLocaleString()}`} />
-            <ReferenceLine y={60000} stroke="#10b981" strokeDasharray="3 3" label={{ position: 'top', value: 'Normal Baseline', fill: '#10b981', fontSize: 12 }} />
-            <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
+            <XAxis dataKey="month" tick={{fontSize: 12, fill: '#64748b'}} axisLine={false} tickLine={false} />
+            <YAxis tickFormatter={(val) => `${val}`} tick={{fontSize: 12, fill: '#64748b'}} axisLine={false} tickLine={false} />
+            <Tooltip cursor={{fill: 'transparent'}} formatter={(value) => `${value.toLocaleString()} txns`} />
+            <ReferenceLine y={5} stroke="#10b981" strokeDasharray="3 3" label={{ position: 'top', value: 'Normal Baseline', fill: '#10b981', fontSize: 12 }} />
+            <Bar dataKey="total" radius={[4, 4, 0, 0]}>
               {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.type === 'spike' ? '#ef4444' : '#94a3b8'} />
+                <Cell key={`cell-${index}`} fill={entry.flagged > 0 ? '#ef4444' : '#94a3b8'} />
               ))}
             </Bar>
           </BarChart>
