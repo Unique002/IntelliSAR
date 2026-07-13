@@ -7,7 +7,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Instantiates GenAI context targeting your .env parameter keys automatically
-client = genai.Client()
+api_key = os.environ.get("GEMINI_API_KEY")
+if not api_key:
+    print("CRITICAL WARNING: GEMINI_API_KEY is not found in the environment variables!")
+client = genai.Client(api_key=api_key)
 
 def run_qualification_gate(customer: str, alert_type: str, amount: float) -> dict:
     """Step 1: Analyzes metrics to perform high-speed false positive reduction."""
