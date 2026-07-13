@@ -56,21 +56,27 @@ export default function SARPlatform() {
   const evidenceMapping = evidencePack?.evidence_mapping || {};
   const hallucinationChecks = evidencePack?.hallucination_checks || [];
 
+  const [activeModal, setActiveModal] = useState(null);
+
+  const fetchDashboard = () => {
+    fetch('http://localhost:8080/api/dashboard')
+      .then(res => res.json())
+      .then(data => {
+        const mappedData = data.map(item => ({
+           ...item,
+           systemStatus: item.systemStatus,
+           reason: item.reason,
+           risk: item.risk === 'High' || item.risk === 'Medium' ? 'High' : 'Low',
+           workflowStatus: item.workflowStatus
+        }));
+        setAllDashboardItems(mappedData);
+      })
+      .catch(err => console.error("Error fetching dashboard:", err));
+  };
+
   useEffect(() => {
     if (isLoggedIn) {
-      fetch('http://localhost:8080/api/dashboard')
-        .then(res => res.json())
-        .then(data => {
-          const mappedData = data.map(item => ({
-             ...item,
-             systemStatus: item.systemStatus,
-             reason: item.reason,
-             risk: item.risk === 'High' || item.risk === 'Medium' ? 'High' : 'Low',
-             workflowStatus: item.workflowStatus
-          }));
-          setAllDashboardItems(mappedData);
-        })
-        .catch(err => console.error("Error fetching dashboard:", err));
+      fetchDashboard();
     }
   }, [isLoggedIn]);
 
@@ -212,7 +218,9 @@ export default function SARPlatform() {
           </div>
           <div className="flex items-center gap-4 md:gap-8">
             <div className="hidden lg:flex gap-6">
-              <button onClick={() => setCurrentScreen('dashboard')} className={`text-sm font-semibold transition-colors ${currentScreen === 'dashboard' ? 'text-cyan-200 border-b-2 border-cyan-200' : 'text-white hover:text-cyan-200'}`}>Analyst Dashboard</button>
+              <button onClick={() => setCurrentScreen('dashboard')} className={`text-sm font-semibold transition-colors ${currentScreen === 'dashboard' ? 'text-cyan-200 border-b-2 border-cyan-200' : 'text-white hover:text-cyan-200'}`}>
+                {currentRole === 'analyst' ? 'Analyst Dashboard' : currentRole === 'reviewer' ? 'Reviewer Dashboard' : 'Auditor Dashboard'}
+              </button>
             </div>
             <div className="flex items-center gap-3 pl-0 md:pl-6 border-l-0 md:border-l border-cyan-600">
               <div className="text-right hidden sm:block">
@@ -241,46 +249,88 @@ export default function SARPlatform() {
         <div className="max-w-[1600px] mx-auto px-4 md:px-8 py-8">
           <div className="mb-8">
             <h2 className="text-3xl md:text-4xl font-black text-slate-900 mb-3" style={{ fontFamily: 'system-ui, sans-serif' }}>
-              Alert Intake & Qualification Dashboard
+              {currentRole === 'analyst' ? 'Alert Intake & Qualification Dashboard' : 
+               currentRole === 'reviewer' ? 'Compliance Review Queue' : 
+               'Monthly SAR Audit Log'}
             </h2>
-            <p className="text-slate-600 text-lg">System has automatically processed incoming alerts. Review escalations and auto-dismissals below.</p>
+            <p className="text-slate-600 text-lg">
+              {currentRole === 'analyst' ? 'System has automatically processed incoming alerts. Review escalations and auto-dismissals below.' : 
+               currentRole === 'reviewer' ? 'Review SAR drafts submitted by analysts. Approve for filing or reject with feedback.' : 
+               'Read-only access to approved Suspicious Activity Reports for the current month.'}
+            </p>
           </div>
 
 
           {/* KPIs */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-            <div className="bg-white p-6 border-l-4 border-slate-400 shadow-sm hover:shadow-md transition-shadow">
-              <div className="text-3xl font-black text-slate-900">{allDashboardItems.length}</div>
-              <div className="text-xs text-slate-600 uppercase tracking-widest mt-2 font-semibold">Total Alerts Today</div>
-              <div className="mt-3 flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-slate-400" />
-                <span className="text-xs text-slate-500 font-semibold">Raw system intake</span>
+          <div className={`grid gap-5 mb-8 ${currentRole === 'analyst' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4' : 'grid-cols-1 sm:grid-cols-2'}`}>
+            {currentRole === 'analyst' && (
+              <>
+                <div className="bg-white p-6 border-l-4 border-slate-400 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="text-3xl font-black text-slate-900">{allDashboardItems.length}</div>
+                  <div className="text-xs text-slate-600 uppercase tracking-widest mt-2 font-semibold">Total Alerts Today</div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-slate-400" />
+                    <span className="text-xs text-slate-500 font-semibold">Raw system intake</span>
+                  </div>
+                </div>
+                <div className="bg-white p-6 border-l-4 border-amber-500 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="text-3xl font-black text-slate-900">{allDashboardItems.filter(item => item.systemStatus === 'Dismissed').length}</div>
+                  <div className="text-xs text-slate-600 uppercase tracking-widest mt-2 font-semibold">Dismissed as Noise</div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-amber-500" />
+                    <span className="text-xs text-amber-600 font-semibold">Failed qual. gate</span>
+                  </div>
+                </div>
+                <div className="bg-white p-6 border-l-4 border-green-600 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="text-3xl font-black text-slate-900">{allDashboardItems.filter(item => item.systemStatus === 'Qualified').length}</div>
+                  <div className="text-xs text-slate-600 uppercase tracking-widest mt-2 font-semibold">Qualified Alerts</div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <span className="text-xs text-green-600 font-semibold">Evidence pack built</span>
+                  </div>
+                </div>
+                <div className="bg-white p-6 border-l-4 border-cyan-600 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="text-3xl font-black text-slate-900">{allDashboardItems.filter(item => item.workflowStatus === 'summary_ready').length}</div>
+                  <div className="text-xs text-slate-600 uppercase tracking-widest mt-2 font-semibold">Pending Draft</div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-cyan-600" />
+                    <span className="text-xs text-cyan-600 font-semibold">SAR Drafts ready</span>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {currentRole === 'reviewer' && (
+              <>
+                <div className="bg-white p-6 border-l-4 border-cyan-600 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="text-3xl font-black text-slate-900">{allDashboardItems.filter(item => item.workflowStatus === 'under_review').length}</div>
+                  <div className="text-xs text-slate-600 uppercase tracking-widest mt-2 font-semibold">Pending Review</div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-cyan-600" />
+                    <span className="text-xs text-cyan-600 font-semibold">Needs attention</span>
+                  </div>
+                </div>
+                <div className="bg-white p-6 border-l-4 border-green-600 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="text-3xl font-black text-slate-900">{allDashboardItems.filter(item => item.workflowStatus === 'approved').length}</div>
+                  <div className="text-xs text-slate-600 uppercase tracking-widest mt-2 font-semibold">Total Approved</div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <span className="text-xs text-green-600 font-semibold">SARs filed</span>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {currentRole === 'auditor' && (
+              <div className="bg-white p-6 border-l-4 border-purple-600 shadow-sm hover:shadow-md transition-shadow sm:col-span-2 lg:col-span-1">
+                <div className="text-3xl font-black text-slate-900">{allDashboardItems.filter(item => item.workflowStatus === 'approved').length}</div>
+                <div className="text-xs text-slate-600 uppercase tracking-widest mt-2 font-semibold">Total Approved Cases</div>
+                <div className="mt-3 flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-purple-600" />
+                  <span className="text-xs text-purple-600 font-semibold">Available for audit</span>
+                </div>
               </div>
-            </div>
-            <div className="bg-white p-6 border-l-4 border-amber-500 shadow-sm hover:shadow-md transition-shadow">
-              <div className="text-3xl font-black text-slate-900">{allDashboardItems.filter(item => item.systemStatus === 'Dismissed').length}</div>
-              <div className="text-xs text-slate-600 uppercase tracking-widest mt-2 font-semibold">Dismissed as Noise</div>
-              <div className="mt-3 flex items-center gap-2">
-                <Shield className="w-4 h-4 text-amber-500" />
-                <span className="text-xs text-amber-600 font-semibold">Failed qual. gate</span>
-              </div>
-            </div>
-            <div className="bg-white p-6 border-l-4 border-green-600 shadow-sm hover:shadow-md transition-shadow">
-              <div className="text-3xl font-black text-slate-900">{allDashboardItems.filter(item => item.systemStatus === 'Qualified').length}</div>
-              <div className="text-xs text-slate-600 uppercase tracking-widest mt-2 font-semibold">Qualified Alerts</div>
-              <div className="mt-3 flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-600" />
-                <span className="text-xs text-green-600 font-semibold">Evidence pack built</span>
-              </div>
-            </div>
-            <div className="bg-white p-6 border-l-4 border-cyan-600 shadow-sm hover:shadow-md transition-shadow">
-              <div className="text-3xl font-black text-slate-900">{allDashboardItems.filter(item => item.systemStatus === 'Qualified').length}</div>
-              <div className="text-xs text-slate-600 uppercase tracking-widest mt-2 font-semibold">Pending Review</div>
-              <div className="mt-3 flex items-center gap-2">
-                <Clock className="w-4 h-4 text-cyan-600" />
-                <span className="text-xs text-cyan-600 font-semibold">SAR Drafts ready</span>
-              </div>
-            </div>
+            )}
           </div>
 
 
@@ -298,8 +348,10 @@ export default function SARPlatform() {
             </div>
             <div className="min-w-[900px]">
               {allDashboardItems.filter(item => {
-                // Show all alerts to all roles for seamless demonstration
-                return true;
+                if (currentRole === 'analyst') return true;
+                if (currentRole === 'reviewer') return item.workflowStatus === 'under_review' || item.workflowStatus === 'approved';
+                if (currentRole === 'auditor') return item.workflowStatus === 'approved';
+                return false;
               }).map((item, idx) => (
                 <div key={item.id} className="border-b border-slate-100 px-8 py-5 hover:bg-cyan-50 transition-all cursor-pointer group">
                   <div className="grid grid-cols-7 items-center">
@@ -326,7 +378,15 @@ export default function SARPlatform() {
                       )}
                     </div>
                     <div>
-                      {item.systemStatus === 'Qualified' ? (
+                      {item.workflowStatus === 'approved' ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold rounded bg-green-100 text-green-700">
+                          <CheckCircle className="w-3 h-3" /> Approved
+                        </span>
+                      ) : item.workflowStatus === 'under_review' ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold rounded bg-purple-100 text-purple-700">
+                          <Clock className="w-3 h-3" /> Under Review
+                        </span>
+                      ) : item.systemStatus === 'Qualified' ? (
                         <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold rounded bg-blue-100 text-blue-700">
                           <FileText className="w-3 h-3" /> SAR Drafted
                         </span>
@@ -338,9 +398,23 @@ export default function SARPlatform() {
                     </div>
                     <div>
                       {item.systemStatus === 'Qualified' ? (
-                        <button onClick={() => openEvidenceBox(item)} className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-700 text-white text-xs font-bold hover:bg-cyan-800 transition-colors group-hover:px-6 rounded">
-                          Review SAR Draft <ChevronRight className="w-4 h-4" />
-                        </button>
+                        <div className="flex gap-2">
+                          <button onClick={() => openEvidenceBox(item)} className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-700 text-white text-xs font-bold hover:bg-cyan-800 transition-colors group-hover:px-6 rounded">
+                            Review SAR <ChevronRight className="w-4 h-4" />
+                          </button>
+                          {currentRole === 'reviewer' && item.workflowStatus === 'approved' && (
+                             <button onClick={(e) => { 
+                               e.stopPropagation(); 
+                               fetch('http://localhost:8080/api/governance/signoff', {
+                                 method: 'POST',
+                                 headers: { 'Content-Type': 'application/json' },
+                                 body: JSON.stringify({ case_id: item.id, action: 'reject', role: 'reviewer', notes: 'Approval Revoked' })
+                               }).then(() => fetchDashboard());
+                             }} className="inline-flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 text-xs font-bold hover:bg-red-200 transition-colors rounded">
+                               Revoke
+                             </button>
+                          )}
+                        </div>
                       ) : (
                         <button onClick={() => openEvidenceBox(item)} className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 transition-colors rounded">
                           <Search className="w-4 h-4" /> View Rejection Log
@@ -441,7 +515,7 @@ export default function SARPlatform() {
                   <div><div className="text-xs text-slate-500 uppercase font-semibold">Business Type</div><div className="text-sm font-semibold text-slate-900">{mockCustomer.businessType}</div></div>
                   <div><div className="text-xs text-slate-500 uppercase font-semibold">Industry</div><div className="text-sm font-semibold text-slate-900">{mockCustomer.industry}</div></div>
                   <div><div className="text-xs text-slate-500 uppercase font-semibold">Relationship</div><div className="text-sm font-semibold text-slate-900">{mockCustomer.relationship}</div></div>
-                  <div><div className="text-xs text-slate-500 uppercase font-semibold">Risk Rating</div><span className="inline-block px-2 py-0.5 text-xs font-black bg-slate-100 text-slate-700 rounded mt-1">{mockCustomer.riskRating}</span></div>
+                  <div><div className="text-xs text-slate-500 uppercase font-semibold">Risk Rating</div><span className="inline-block px-2 py-0.5 text-xs font-black bg-slate-100 text-slate-700 rounded mt-1">{mockCustomer.riskRating || selectedCase?.risk || 'High Risk'}</span></div>
                 </div>
               </div>
 
@@ -621,7 +695,7 @@ export default function SARPlatform() {
 
               {/* UPGRADE 2: Similar Cases Detected */}
               {selectedCase?.systemStatus !== 'Dismissed' && (
-                <SimilarCasesWidget cases={mockSimilarCasesList} />
+                <SimilarCasesWidget cases={mockSimilarCasesList} setActiveModal={setActiveModal} />
               )}
 
 
@@ -644,13 +718,13 @@ export default function SARPlatform() {
               <div className="bg-cyan-50 border border-cyan-200 p-4 rounded">
                 <div className="text-xs font-black text-cyan-900 uppercase tracking-widest mb-3">Quick Analyst Actions</div>
                 <div className="space-y-2">
-                  <button className="w-full text-left px-4 py-3 bg-white hover:bg-cyan-100 text-sm text-cyan-900 font-semibold transition-colors flex items-center gap-3 rounded border border-cyan-100">
+                  <button onClick={() => setActiveModal('search')} className="w-full text-left px-4 py-3 bg-white hover:bg-cyan-100 text-sm text-cyan-900 font-semibold transition-colors flex items-center gap-3 rounded border border-cyan-100">
                     <Search className="w-4 h-4" /> Search Transaction History
                   </button>
-                  <button className="w-full text-left px-4 py-3 bg-white hover:bg-cyan-100 text-sm text-cyan-900 font-semibold transition-colors flex items-center gap-3 rounded border border-cyan-100">
+                  <button onClick={() => setActiveModal('beneficiaries')} className="w-full text-left px-4 py-3 bg-white hover:bg-cyan-100 text-sm text-cyan-900 font-semibold transition-colors flex items-center gap-3 rounded border border-cyan-100">
                     <Users className="w-4 h-4" /> View Beneficiaries
                   </button>
-                  <button className="w-full text-left px-4 py-3 bg-white hover:bg-cyan-100 text-sm text-cyan-900 font-semibold transition-colors flex items-center gap-3 rounded border border-cyan-100">
+                  <button onClick={() => setActiveModal('analytics')} className="w-full text-left px-4 py-3 bg-white hover:bg-cyan-100 text-sm text-cyan-900 font-semibold transition-colors flex items-center gap-3 rounded border border-cyan-100">
                     <BarChart3 className="w-4 h-4" /> Generate Analytics Report
                   </button>
                 </div>
@@ -687,9 +761,11 @@ export default function SARPlatform() {
               <button onClick={() => setCurrentScreen('investigation')} className="flex-1 lg:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 text-white text-sm font-bold hover:bg-slate-800 transition-colors rounded">
                 <Search className="w-4 h-4" /> Raw Evidence
               </button>
-              <button onClick={() => setShowToneCalibration(!showToneCalibration)} className={`flex-1 lg:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold transition-colors rounded ${showToneCalibration ? 'bg-orange-700 text-white' : 'bg-white text-orange-700 border border-orange-700 hover:bg-orange-50'}`}>
-                <AlertTriangle className="w-4 h-4" /> Tone Calibration
-              </button>
+              {currentRole !== 'auditor' && (
+                <button onClick={() => setShowToneCalibration(!showToneCalibration)} className={`flex-1 lg:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold transition-colors rounded ${showToneCalibration ? 'bg-orange-700 text-white' : 'bg-white text-orange-700 border border-orange-700 hover:bg-orange-50'}`}>
+                  <AlertTriangle className="w-4 h-4" /> Tone Calibration
+                </button>
+              )}
             </div>
           </div>
 
@@ -721,7 +797,7 @@ export default function SARPlatform() {
 
 
               {/* Trust Layer 5: Tone Calibration Panel */}
-              {showToneCalibration && (
+              {showToneCalibration && currentRole !== 'auditor' && (
                 <div className="bg-orange-50 border border-orange-200 p-6 shadow-sm rounded">
                   <div className="flex items-start gap-3 mb-4">
                     <AlertTriangle className="w-6 h-6 text-orange-700 flex-shrink-0 mt-0.5" />
@@ -1119,6 +1195,10 @@ export default function SARPlatform() {
                  </div>
                  <div className="p-4 space-y-4">
                     <div>
+                      <div className="text-[10px] text-slate-500 font-bold mb-1 uppercase tracking-wider">Risk Rating</div>
+                      <div className="text-sm font-semibold text-slate-900">{caseData.risk || 'High Risk'}</div>
+                    </div>
+                    <div>
                       <div className="text-xs text-slate-500 font-bold uppercase mb-2">Customer</div>
                       <div className="text-sm font-semibold text-slate-900">{selectedCase?.customer}</div>
                       <div className="text-xs text-slate-600">{mockCustomer?.businessType || 'N/A'} - {mockCustomer?.industry || 'N/A'}</div>
@@ -1183,6 +1263,74 @@ export default function SARPlatform() {
         </div>
       )}
 
+      {activeModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl overflow-hidden border border-slate-200">
+            <div className="bg-cyan-700 px-6 py-4 flex justify-between items-center border-b border-cyan-800">
+              <h3 className="text-lg font-black text-white">
+                {activeModal === 'search' ? 'Transaction History Search' :
+                 activeModal === 'beneficiaries' ? 'Beneficiary Network Analysis' :
+                 activeModal === 'analytics' ? 'Advanced Analytics Report' :
+                 'Similar Case Review'}
+              </h3>
+              <button onClick={() => setActiveModal(null)} className="text-cyan-100 hover:text-white transition-colors">
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 h-[400px] overflow-y-auto bg-slate-50">
+              {activeModal === 'search' && (
+                <div className="space-y-4">
+                  <div className="flex gap-2">
+                    <input type="text" placeholder="Search by amount, counterparty, or date..." className="flex-1 px-4 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:border-cyan-500" />
+                    <button className="bg-cyan-700 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 hover:bg-cyan-800"><Search className="w-4 h-4"/> Search</button>
+                  </div>
+                  <div className="bg-white border border-slate-200 p-8 rounded text-center text-slate-500 text-sm">
+                    Enter search criteria to query the full historical ledger for {selectedCase?.customer}.
+                  </div>
+                </div>
+              )}
+              {activeModal === 'beneficiaries' && (
+                <div className="space-y-4">
+                  <div className="bg-white border border-slate-200 rounded p-4">
+                    <div className="font-bold text-slate-900 mb-2">Known Beneficiaries</div>
+                    <ul className="space-y-2 text-sm text-slate-700">
+                      <li className="flex justify-between border-b pb-2"><span>Apex Trading LLC</span> <span className="font-mono bg-slate-100 px-2 rounded">ACC-9921</span></li>
+                      <li className="flex justify-between border-b pb-2"><span>Global Impex</span> <span className="font-mono bg-slate-100 px-2 rounded">ACC-5510</span></li>
+                      <li className="flex justify-between"><span>Nexus Logistics</span> <span className="font-mono bg-slate-100 px-2 rounded">ACC-8842</span></li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+              {activeModal === 'analytics' && (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <BarChart3 className="w-12 h-12 text-cyan-200 mb-4" />
+                  <h4 className="text-slate-800 font-bold mb-2">Analytics Engine Initializing...</h4>
+                  <p className="text-slate-500 text-sm max-w-sm">Gathering historical flow data, risk scoring matrices, and counterparty graphs for a comprehensive PDF report.</p>
+                </div>
+              )}
+              {activeModal === 'similar-case' && (
+                <div className="space-y-4">
+                  <div className="bg-white border border-purple-200 rounded overflow-hidden">
+                    <div className="bg-purple-50 px-4 py-2 font-bold text-purple-900 border-b border-purple-100 text-sm">CASE SUMMARY ARCHIVE</div>
+                    <div className="p-4 space-y-3 text-sm text-slate-700">
+                      <div><strong>Entity:</strong> Related Shell Corp</div>
+                      <div><strong>Resolution:</strong> SAR Filed, Accounts Closed (Dec 2024)</div>
+                      <div><strong>Key Typology:</strong> Trade-based laundering using over-invoicing and structured wire transfers to high-risk jurisdictions.</div>
+                      <div className="mt-4 p-3 bg-slate-50 border border-slate-200 rounded">
+                        <div className="font-semibold text-slate-900 mb-1">Analyst Notes from Archive:</div>
+                        "The pattern matches the new alert perfectly. Suggest immediate escalation and freezing of assets to prevent capital flight."
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 bg-white border-t border-slate-200 flex justify-end">
+               <button onClick={() => setActiveModal(null)} className="px-4 py-2 text-slate-700 border border-slate-300 rounded font-bold text-sm hover:bg-slate-50">Close Window</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

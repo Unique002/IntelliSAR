@@ -1,7 +1,7 @@
 import React from 'react';
 import { GitBranch, Eye } from 'lucide-react';
 
-export default function SimilarCasesWidget({ cases }) {
+export default function SimilarCasesWidget({ cases, setActiveModal }) {
   return (
     <div className="bg-white border border-slate-200 shadow-sm mt-6">
       <div className="px-6 py-4 bg-purple-50 border-b border-purple-100 flex items-center justify-between">
@@ -19,7 +19,7 @@ export default function SimilarCasesWidget({ cases }) {
               <span className="text-xs text-slate-500">{sc.date}</span>
             </div>
             <div className="text-sm text-slate-700 mb-3">{sc.typology}</div>
-            <button className="text-xs font-bold text-purple-700 hover:text-purple-900 flex items-center gap-1 transition-colors">
+            <button onClick={() => setActiveModal ? setActiveModal('similar-case') : alert('View Case')} className="text-xs font-bold text-purple-700 hover:text-purple-900 flex items-center gap-1 transition-colors">
               <Eye className="w-3 h-3" /> View Case Summary
             </button>
           </div>
